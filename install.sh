@@ -462,7 +462,7 @@ os() {
 #
 # Inspired by https://github.com/docker/docker-install/blob/26ff363bcf3b3f5a00498ac43694bf1c7d9ce16c/install.sh#L111-L120.
 distro() {
-  if [ "$OS" = "macos" ] || [ "$OS" = "freebsd" ]; then
+  if [ "$OS" = "macos" ] || [ "$OS" = "freebsd" ] || [ "$OS" = "chromeos" ]; then
     echo "$OS"
     return
   fi
@@ -490,6 +490,11 @@ distro() {
 distro_name() {
   if [ "$(uname)" = "Darwin" ]; then
     echo "macOS v$(sw_vers -productVersion)"
+    return
+  fi
+
+  if [ "$OS" = "chromeos" ]; then
+    echo "Chrome OS $(grep VERSION= /etc/os-release | cut -c9-)"
     return
   fi
 
