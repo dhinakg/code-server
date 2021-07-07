@@ -208,8 +208,6 @@ main() {
   STANDALONE_INSTALL_PREFIX="${STANDALONE_INSTALL_PREFIX-$HOME/.local}"
 
   OS="$(os)"
-  echo "$OS"
-  exit 0
   if [ ! "$OS" ]; then
     echoerr "Unsupported OS $(uname)."
     exit 1
