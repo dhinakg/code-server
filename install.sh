@@ -462,11 +462,17 @@ os() {
 #
 # Inspired by https://github.com/docker/docker-install/blob/26ff363bcf3b3f5a00498ac43694bf1c7d9ce16c/install.sh#L111-L120.
 distro() {
-  if [ "$OS" = "macos" ] || [ "$OS" = "freebsd" ] || [ "$OS" = "chromeos" ]; then
+  if [ "$OS" = "macos" ] || [ "$OS" = "freebsd" ]; then
     echo "$OS"
     return
   fi
-  echo "$OS - part A"
+
+  # Thanks Chrome OS for not quoting the name
+  if [ "$(grep NAME= /etc/os-release)" = "NAME=Chrome OS" ]; then
+    echo "chromeos"
+    return
+  fi
+
   if [ -f /etc/os-release ]; then
     (
       . /etc/os-release
@@ -493,11 +499,11 @@ distro_name() {
     return
   fi
 
-  if [ "$OS" = "chromeos" ]; then
+  if [ "$(distro)" = "chromeos" ]; then
     echo "Chrome OS $(grep VERSION= /etc/os-release | cut -c9-)"
     return
   fi
-  echo "$OS - part B"
+
   if [ -f /etc/os-release ]; then
     (
       . /etc/os-release
