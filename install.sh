@@ -466,7 +466,7 @@ distro() {
     echo "$OS"
     return
   fi
-
+  echo "$OS - part A"
   if [ -f /etc/os-release ]; then
     (
       . /etc/os-release
@@ -497,7 +497,7 @@ distro_name() {
     echo "Chrome OS $(grep VERSION= /etc/os-release | cut -c9-)"
     return
   fi
-
+  echo "$OS - part B"
   if [ -f /etc/os-release ]; then
     (
       . /etc/os-release
