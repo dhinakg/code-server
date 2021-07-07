@@ -205,7 +205,6 @@ main() {
     echoerr "Run with --help to see usage."
     exit 1
   fi
-  STANDALONE_INSTALL_PREFIX="${STANDALONE_INSTALL_PREFIX-$HOME/.local}"
 
   OS="$(os)"
   if [ ! "$OS" ]; then
@@ -249,6 +248,12 @@ main() {
     return
   fi
 
+  STANDALONE_INSTALL_PREFIX="${STANDALONE_INSTALL_PREFIX-$HOME/.local}"
+  if [ "$(distro)" = "chromeos" ]; then
+    # Due to noexec mounts, the only place we can install is /usr/local
+    STANDALONE_INSTALL_PREFIX="/usr/local"
+  fi
+  
   CACHE_DIR="$(echo_cache_dir)"
 
   if [ "$METHOD" = standalone ]; then
