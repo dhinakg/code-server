@@ -1,5 +1,5 @@
 {
-  "versions": ["v3.11.0", "v3.10.2"],
+  "versions": ["v3.11.1"],
   "routes": [
     {
       "title": "Home",
@@ -32,6 +32,11 @@
       "icon": "<svg viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 10l-2.5-1.5L15 12V4h5v8z\"></path></svg>",
       "path": "./guide.md",
       "children": [
+        {
+          "title": "--link",
+          "description": "How to run code-server --link",
+          "path": "./link.md"
+        },
         {
           "title": "iPad",
           "description": "How to access your code-server installation using an iPad.",

@@ -14,6 +14,7 @@
   - [Using a subpath](#using-a-subpath)
   - [Stripping `/proxy/<port>` from the request path](#stripping-proxyport-from-the-request-path)
   - [Proxying to create a React app](#proxying-to-create-a-react-app)
+  - [Proxying to a Vue app](#proxying-to-a-vue-app)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -33,7 +34,7 @@ testing, but it doesn't work if you want to access code-server from a different
 machine.
 
 > **Rate limits:** code-server rate limits password authentication attempts to
-> two per minute and twelve per hour.
+> two per minute plus an additional twelve per hour.
 
 There are several approaches to operating and exposing code-server securely:
 
@@ -348,3 +349,24 @@ You should then be able to visit `https://my-code-server-address.io/absproxy/300
 code-server!
 
 > We highly recommend using the subdomain approach instead to avoid this class of issue.
+
+### Proxying to a Vue app
+
+Similar to the situation with React apps, you have to make a few modifications to proxy a Vue app.
+
+1. add `vue.config.js`
+2. update the values to match this (you can use any free port):
+
+```js
+module.exports = {
+  devServer: {
+    port: 3454,
+    sockPath: "sockjs-node",
+  },
+  publicPath: "/absproxy/3454",
+}
+```
+
+3. access app at `<code-server-root>/absproxy/3454` e.g. `http://localhost:8080/absproxy/3454`
+
+Read more about `publicPath` in the [Vue.js docs](https://cli.vuejs.org/config/#publicpath)
