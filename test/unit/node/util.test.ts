@@ -447,6 +447,28 @@ describe("onLine", () => {
 
     expect(await received).toEqual(expected)
   })
+
+  describe("used with a process missing stdout ", () => {
+    it("should throw an error", async () => {
+      // Initialize a process that does not have stdout.
+      // "If the child was spawned with stdio set to anything
+      // other than 'pipe', then subprocess.stdout will be null."
+      // Source: https://stackoverflow.com/a/46024006/3015595
+      // Other source: https://nodejs.org/api/child_process.html#child_process_subprocess_stdout
+      // NOTE@jsjoeio - I'm not sure if this actually happens though
+      // which is why I have to set proc.stdout = null
+      // a couple lines below.
+      const proc = cp.spawn("node", [], {
+        stdio: "ignore",
+      })
+      const mockCallback = jest.fn()
+
+      expect(() => util.onLine(proc, mockCallback)).toThrowError(/stdout/)
+
+      // Cleanup
+      proc?.kill()
+    })
+  })
 })
 
 describe("escapeHtml", () => {
@@ -454,31 +476,6 @@ describe("escapeHtml", () => {
     expect(util.escapeHtml(`<div class="error">"'ello & world"</div>`)).toBe(
       "&lt;div class=&quot;error&quot;&gt;&quot;&apos;ello &amp; world&quot;&lt;/div&gt;",
     )
-  })
-})
-
-describe("pathToFsPath", () => {
-  it("should convert a path to a file system path", () => {
-    expect(util.pathToFsPath("/foo/bar/baz")).toBe("/foo/bar/baz")
-  })
-  it("should lowercase drive letter casing by default", () => {
-    expect(util.pathToFsPath("/C:/far/boo")).toBe("c:/far/boo")
-  })
-  it("should keep drive letter casing when set to true", () => {
-    expect(util.pathToFsPath("/C:/far/bo", true)).toBe("C:/far/bo")
-  })
-  it("should replace / with \\ on Windows", () => {
-    const ORIGINAL_PLATFORM = process.platform
-
-    Object.defineProperty(process, "platform", {
-      value: "win32",
-    })
-
-    expect(util.pathToFsPath("/C:/far/boo")).toBe("c:\\far\\boo")
-
-    Object.defineProperty(process, "platform", {
-      value: ORIGINAL_PLATFORM,
-    })
   })
 })
 
@@ -499,5 +496,21 @@ describe("isFile", () => {
   })
   it("should return true if is file", async () => {
     expect(await util.isFile(pathToFile)).toBe(true)
+  })
+})
+
+describe("humanPath", () => {
+  it("should return an empty string if no path provided", () => {
+    const mockHomedir = "/home/coder"
+    const actual = util.humanPath(mockHomedir)
+    const expected = ""
+    expect(actual).toBe(expected)
+  })
+  it("should replace the homedir with ~", () => {
+    const mockHomedir = "/home/coder"
+    const path = `${mockHomedir}/code-server`
+    const actual = util.humanPath(mockHomedir, path)
+    const expected = "~/code-server"
+    expect(actual).toBe(expected)
   })
 })

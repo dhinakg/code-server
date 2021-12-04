@@ -26,7 +26,8 @@
 - [Can I use Docker in a code-server container?](#can-i-use-docker-in-a-code-server-container)
 - [How do I disable telemetry?](#how-do-i-disable-telemetry)
 - [What's the difference between code-server and Theia?](#whats-the-difference-between-code-server-and-theia)
-- [What's the difference between code-server and VS Code Codespaces?](#whats-the-difference-between-code-server-and-vs-code-codespaces)
+- [What's the difference between code-server and OpenVSCode-Server?](#whats-the-difference-between-code-server-and-openvscode-server)
+- [What's the difference between code-server and GitHub Codespaces?](#whats-the-difference-between-code-server-and-github-codespaces)
 - [Does code-server have any security login validation?](#does-code-server-have-any-security-login-validation)
 - [Are there community projects involving code-server?](#are-there-community-projects-involving-code-server)
 - [How do I change the port?](#how-do-i-change-the-port)
@@ -100,8 +101,11 @@ Service](https://cdn.vsassets.io/v/M146_20190123.39/_content/Microsoft-Visual-St
 > Visual Studio Products and Services.
 
 Because of this, we can't offer any extensions on Microsoft's marketplace.
-Instead, we've created a marketplace offering open-source extensions. The
-marketplace works by scraping GitHub for VS Code extensions and building them.
+Instead, we use the [Open-VSX extension gallery](https://open-vsx.org), which is also used by various other forks.
+It isn't perfect, but its getting better by the day with more and more extensions.
+
+We also offer our own marketplace for open source extensions, but plan to
+deprecate it at a future date and completely migrate to Open-VSX.
 
 These are the closed-source extensions that are presently unavailable:
 
@@ -117,15 +121,8 @@ For more about the closed source portions of VS Code, see [vscodium/vscodium](ht
 
 ## How can I request an extension that's missing from the marketplace?
 
-We are in the process of transitioning to [Open VSX](https://open-vsx.org/).
-Once we've [implemented Open
-VSX](https://github.com/eclipse/openvsx/issues/249), we can finalize this
-transition. As such, we are not currently accepting new extension requests.
-
-In the meantime, we suggest:
-
-- [Switching to Open VSX](#how-do-i-configure-the-marketplace-url) now
-- Downloading and [installing the extension manually](#installing-an-extension-manually)
+To add an extension to Open-VSX, please see [open-vsx/publish-extensions](https://github.com/open-vsx/publish-extensions).
+We no longer plan to add new extensions to our legacy extension gallery.
 
 ## How do I install an extension?
 
@@ -158,20 +155,19 @@ You can also download extensions using the command line. For instance,
 downloading from OpenVSX can be done like this:
 
 ```shell
-SERVICE_URL=https://open-vsx.org/vscode/gallery ITEM_URL=https://open-vsx.org/vscode/item code-server --install-extension <extension id>
+code-server --install-extension <extension id>
 ```
 
 ## How do I use my own extensions marketplace?
 
 If you own a marketplace that implements the VS Code Extension Gallery API, you
-can point code-server to it by setting `$SERVICE_URL` and `$ITEM_URL`. These correspond directly
-to `serviceUrl` and `itemUrl` in VS Code's `product.json`.
+can point code-server to it by setting `$EXTENSIONS_GALLERY`.
+This corresponds directly with the `extensionsGallery` entry in in VS Code's `product.json`.
 
-For example, to use [open-vsx.org](https://open-vsx.org), run:
+For example, to use the legacy Coder extensions marketplace:
 
 ```bash
-export SERVICE_URL=https://open-vsx.org/vscode/gallery
-export ITEM_URL=https://open-vsx.org/vscode/item
+export EXTENSIONS_GALLERY='{"serviceUrl": "https://extensions.coder.com/api"}'
 ```
 
 Though you can technically use Microsoft's marketplace in this manner, we
@@ -377,18 +373,31 @@ for extensions.
 
 Theia doesn't allow you to reuse your existing VS Code config.
 
-## What's the difference between code-server and VS Code Codespaces?
+## What's the difference between code-server and OpenVSCode-Server?
 
-Both code-server and VS Code Codespaces allow you to access VS Code via a
-browser.
+code-server and OpenVSCode-Server both allow you to access VS Code via a
+browser. The two projects also use their own [forks of VS Code](https://github.com/cdr/vscode) to
+leverage modern VS Code APIs and stay up to date with the upsteam version.
 
-VS Code Codespaces, however, is a closed-source, paid service offered by
-Microsoft. While you can self-host environments with VS Code Codespaces, you
-still need an Azure billing account, and you must access VS Code via the
-Codespaces web dashboard instead of connecting directly to it.
+However, OpenVSCode-Server is scoped at only making VS Code available in the web browser.
+code-server includes some other features:
 
-On the other hand, code-server is free, open-source, and can be run on any
-machine with few limitations.
+- password auth
+- proxy web ports
+- certificate support
+- plugin API
+- settings sync (coming soon)
+
+For more details, see [this discussion post](https://github.com/cdr/code-server/discussions/4267#discussioncomment-1411583).
+
+## What's the difference between code-server and GitHub Codespaces?
+
+Both code-server and GitHub Codespaces allow you to access VS Code via a
+browser. GitHub Codespaces, however, is a closed-source, paid service offered by
+GitHub and Microsoft.
+
+On the other hand, code-server is self-hosted, free, open-source, and
+can be run on any machine with few limitations.
 
 ## Does code-server have any security login validation?
 

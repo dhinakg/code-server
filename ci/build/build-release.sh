@@ -12,10 +12,11 @@ KEEP_MODULES="${KEEP_MODULES-0}"
 
 main() {
   cd "$(dirname "${0}")/../.."
+
   source ./ci/lib.sh
 
-  VSCODE_SRC_PATH="lib/vscode"
-  VSCODE_OUT_PATH="$RELEASE_PATH/lib/vscode"
+  VSCODE_SRC_PATH="vendor/modules/code-oss-dev"
+  VSCODE_OUT_PATH="$RELEASE_PATH/vendor/modules/code-oss-dev"
 
   mkdir -p "$RELEASE_PATH"
 
@@ -24,7 +25,7 @@ main() {
 
   rsync ./docs/README.md "$RELEASE_PATH"
   rsync LICENSE.txt "$RELEASE_PATH"
-  rsync ./lib/vscode/ThirdPartyNotices.txt "$RELEASE_PATH"
+  rsync ./vendor/modules/code-oss-dev/ThirdPartyNotices.txt "$RELEASE_PATH"
 }
 
 bundle_code_server() {
@@ -48,7 +49,7 @@ bundle_code_server() {
   {
     "commit": "$(git rev-parse HEAD)",
     "scripts": {
-      "postinstall": "./postinstall.sh"
+      "postinstall": "sh ./postinstall.sh"
     }
   }
 EOF
@@ -66,7 +67,7 @@ EOF
 bundle_vscode() {
   mkdir -p "$VSCODE_OUT_PATH"
   rsync "$VSCODE_SRC_PATH/yarn.lock" "$VSCODE_OUT_PATH"
-  rsync "$VSCODE_SRC_PATH/out-vscode${MINIFY:+-min}/" "$VSCODE_OUT_PATH/out"
+  rsync "$VSCODE_SRC_PATH/out-vscode-reh-web${MINIFY:+-min}/" "$VSCODE_OUT_PATH/out"
 
   rsync "$VSCODE_SRC_PATH/.build/extensions/" "$VSCODE_OUT_PATH/extensions"
   if [ "$KEEP_MODULES" = 0 ]; then
@@ -78,9 +79,8 @@ bundle_vscode() {
   rsync "$VSCODE_SRC_PATH/extensions/yarn.lock" "$VSCODE_OUT_PATH/extensions"
   rsync "$VSCODE_SRC_PATH/extensions/postinstall.js" "$VSCODE_OUT_PATH/extensions"
 
-  mkdir -p "$VSCODE_OUT_PATH/resources/"{linux,web}
-  rsync "$VSCODE_SRC_PATH/resources/linux/code.png" "$VSCODE_OUT_PATH/resources/linux/code.png"
-  rsync "$VSCODE_SRC_PATH/resources/web/callback.html" "$VSCODE_OUT_PATH/resources/web/callback.html"
+  mkdir -p "$VSCODE_OUT_PATH/resources/"
+  rsync "$VSCODE_SRC_PATH/resources/" "$VSCODE_OUT_PATH/resources/"
 
   # Add the commit and date and enable telemetry. This just makes telemetry
   # available; telemetry can still be disabled by flag or setting.
@@ -88,7 +88,8 @@ bundle_vscode() {
     cat << EOF
   {
     "enableTelemetry": true,
-    "commit": "$(git rev-parse HEAD)",
+    "commit": "$(cd "$VSCODE_SRC_PATH" && git rev-parse HEAD)",
+    "quality": "stable",
     "date": $(jq -n 'now | todate')
   }
 EOF

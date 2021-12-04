@@ -42,6 +42,8 @@ describe("plugin", () => {
         usingEnvHashedPassword: false,
         "extensions-dir": "",
         "user-data-dir": "",
+        workspace: "",
+        folder: "",
       }
       next()
     }
@@ -58,7 +60,7 @@ describe("plugin", () => {
   })
 
   afterAll(async () => {
-    await s.close()
+    await s.dispose()
   })
 
   it("/api/applications", async () => {

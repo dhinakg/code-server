@@ -1,19 +1,31 @@
 import { logger } from "@coder/logger"
-import {
-  optionDescriptions,
-  parse,
-  readConfigFile,
-  setDefaults,
-  shouldOpenInExistingInstance,
-  shouldRunVsCodeCli,
-} from "./cli"
-import { commit, version } from "./constants"
-import { openInExistingInstance, runCodeServer, runVsCodeCli } from "./main"
-import * as proxyAgent from "./proxy_agent"
+import { optionDescriptions, parse, readConfigFile, setDefaults, shouldOpenInExistingInstance } from "./cli"
+import { commit, pkgName, version } from "./constants"
+import { openInExistingInstance, runCodeServer, runVsCodeCli, shouldSpawnCliProcess } from "./main"
+import { monkeyPatchProxyProtocols } from "./proxy_agent"
+import { loadAMDModule } from "./util"
 import { isChild, wrapper } from "./wrapper"
 
+const cliPipe = process.env["VSCODE_IPC_HOOK_CLI"] as string
+const cliCommand = process.env["VSCODE_CLIENT_COMMAND"] as string
+
 async function entry(): Promise<void> {
-  proxyAgent.monkeyPatch(false)
+  monkeyPatchProxyProtocols()
+
+  if (cliPipe || cliCommand) {
+    const remoteAgentMain = await loadAMDModule<CodeServerLib.RemoteCLIMain>("vs/server/remoteCli", "main")
+
+    remoteAgentMain(
+      {
+        productName: pkgName,
+        version,
+        commit,
+        executableName: pkgName,
+      },
+      process.argv.slice(2),
+    )
+    return
+  }
 
   // There's no need to check flags like --help or to spawn in an existing
   // instance for the child process because these would have already happened in
@@ -24,7 +36,8 @@ async function entry(): Promise<void> {
   if (isChild(wrapper)) {
     const args = await wrapper.handshake()
     wrapper.preventExit()
-    await runCodeServer(args)
+    const server = await runCodeServer(args)
+    wrapper.onDispose(() => server.dispose())
     return
   }
 
@@ -36,6 +49,8 @@ async function entry(): Promise<void> {
     console.log("code-server", version, commit)
     console.log("")
     console.log(`Usage: code-server [options] [path]`)
+    console.log(`    - Opening a directory: code-server ./path/to/your/project`)
+    console.log(`    - Opening a saved workspace: code-server ./path/to/your/project.code-workspace`)
     console.log("")
     console.log("Options")
     optionDescriptions().forEach((description) => {
@@ -46,23 +61,27 @@ async function entry(): Promise<void> {
 
   if (args.version) {
     if (args.json) {
-      console.log({
-        codeServer: version,
-        commit,
-        vscode: require("../../lib/vscode/package.json").version,
-      })
+      console.log(
+        JSON.stringify({
+          codeServer: version,
+          commit,
+          vscode: require("../../vendor/modules/code-oss-dev/package.json").version,
+        }),
+      )
     } else {
       console.log(version, commit)
     }
     return
   }
 
-  if (shouldRunVsCodeCli(args)) {
+  if (shouldSpawnCliProcess(args)) {
+    logger.debug("Found VS Code arguments; spawning VS Code CLI")
     return runVsCodeCli(args)
   }
 
   const socketPath = await shouldOpenInExistingInstance(cliArgs)
   if (socketPath) {
+    logger.debug("Trying to open in existing instance")
     return openInExistingInstance(args, socketPath)
   }
 

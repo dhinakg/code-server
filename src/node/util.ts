@@ -3,14 +3,15 @@ import * as argon2 from "argon2"
 import * as cp from "child_process"
 import * as crypto from "crypto"
 import envPaths from "env-paths"
-import { promises as fs } from "fs"
+import { promises as fs, Stats } from "fs"
 import * as net from "net"
 import * as os from "os"
 import * as path from "path"
 import safeCompare from "safe-compare"
 import * as util from "util"
 import xdgBasedir from "xdg-basedir"
-import { getFirstString } from "../common/util"
+import { logError } from "../common/util"
+import { isDevMode, rootPath, vsRootPath } from "./constants"
 
 export interface Paths {
   data: string
@@ -20,15 +21,16 @@ export interface Paths {
 
 // From https://github.com/chalk/ansi-regex
 const pattern = [
-  "[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)",
+  "[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)",
   "(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))",
 ].join("|")
 const re = new RegExp(pattern, "g")
 
+export type OnLineCallback = (strippedLine: string, originalLine: string) => void
 /**
  * Split stdout on newlines and strip ANSI codes.
  */
-export const onLine = (proc: cp.ChildProcess, callback: (strippedLine: string, originalLine: string) => void): void => {
+export const onLine = (proc: cp.ChildProcess, callback: OnLineCallback): void => {
   let buffer = ""
   if (!proc.stdout) {
     throw new Error("no stdout")
@@ -88,16 +90,17 @@ export function getEnvPaths(): Paths {
 }
 
 /**
- * humanPath replaces the home directory in p with ~.
+ * humanPath replaces the home directory in path with ~.
  * Makes it more readable.
  *
- * @param p
+ * @param homedir - the home directory(i.e. `os.homedir()`)
+ * @param path - a file path
  */
-export function humanPath(p?: string): string {
-  if (!p) {
+export function humanPath(homedir: string, path?: string): string {
+  if (!path) {
     return ""
   }
-  return p.replace(os.homedir(), "~")
+  return path.replace(homedir, "~")
 }
 
 export const generateCertificate = async (hostname: string): Promise<{ cert: string; certKey: string }> => {
@@ -157,7 +160,7 @@ export const generatePassword = async (length = 24): Promise<string> => {
 export const hash = async (password: string): Promise<string> => {
   try {
     return await argon2.hash(password)
-  } catch (error) {
+  } catch (error: any) {
     logger.error(error)
     return ""
   }
@@ -172,7 +175,7 @@ export const isHashMatch = async (password: string, hash: string) => {
   }
   try {
     return await argon2.verify(hash, password)
-  } catch (error) {
+  } catch (error: any) {
     throw new Error(error)
   }
 }
@@ -318,7 +321,7 @@ export async function isCookieValid({
  * - greater than 0 characters
  * - trims whitespace
  */
-export function sanitizeString(str: string): string {
+export function sanitizeString(str: unknown): string {
   // Very basic sanitization of string
   // Credit: https://stackoverflow.com/a/46719000/3015595
   return typeof str === "string" && str.trim().length > 0 ? str.trim() : ""
@@ -393,9 +396,17 @@ export const isWsl = async (): Promise<boolean> => {
 }
 
 /**
- * Try opening a URL using whatever the system has set for opening URLs.
+ * Try opening an address using whatever the system has set for opening URLs.
  */
-export const open = async (url: string): Promise<void> => {
+export const open = async (address: URL | string): Promise<void> => {
+  if (typeof address === "string") {
+    throw new Error("Cannot open socket paths")
+  }
+  // Web sockets do not seem to work if browsing with 0.0.0.0.
+  const url = new URL(address)
+  if (url.hostname === "0.0.0.0") {
+    url.hostname = "localhost"
+  }
   const args = [] as string[]
   const options = {} as cp.SpawnOptions
   const platform = (await isWsl()) ? "wsl" : process.platform
@@ -403,9 +414,9 @@ export const open = async (url: string): Promise<void> => {
   if (platform === "win32" || platform === "wsl") {
     command = platform === "wsl" ? "cmd.exe" : "cmd"
     args.push("/c", "start", '""', "/b")
-    url = url.replace(/&/g, "^&")
+    url.search = url.search.replace(/&/g, "^&")
   }
-  const proc = cp.spawn(command, [...args, url], options)
+  const proc = cp.spawn(command, [...args, url.toString()], options)
   await new Promise<void>((resolve, reject) => {
     proc.on("error", reject)
     proc.on("close", (code) => {
@@ -437,55 +448,6 @@ export const buildAllowedMessage = (t: any): string => {
 
 export const isObject = <T extends object>(obj: T): obj is T => {
   return !Array.isArray(obj) && typeof obj === "object" && obj !== null
-}
-
-/**
- * Taken from vs/base/common/charCode.ts. Copied for now instead of importing so
- * we don't have to set up a `vs` alias to be able to import with types (since
- * the alternative is to directly import from `out`).
- */
-enum CharCode {
-  Slash = 47,
-  A = 65,
-  Z = 90,
-  a = 97,
-  z = 122,
-  Colon = 58,
-}
-
-/**
- * Compute `fsPath` for the given uri.
- * Taken from vs/base/common/uri.ts. It's not imported to avoid also importing
- * everything that file imports.
- */
-export function pathToFsPath(path: string, keepDriveLetterCasing = false): string {
-  const isWindows = process.platform === "win32"
-  const uri = { authority: undefined, path: getFirstString(path) || "", scheme: "file" }
-  let value: string
-
-  if (uri.authority && uri.path.length > 1 && uri.scheme === "file") {
-    // unc path: file://shares/c$/far/boo
-    value = `//${uri.authority}${uri.path}`
-  } else if (
-    uri.path.charCodeAt(0) === CharCode.Slash &&
-    ((uri.path.charCodeAt(1) >= CharCode.A && uri.path.charCodeAt(1) <= CharCode.Z) ||
-      (uri.path.charCodeAt(1) >= CharCode.a && uri.path.charCodeAt(1) <= CharCode.z)) &&
-    uri.path.charCodeAt(2) === CharCode.Colon
-  ) {
-    if (!keepDriveLetterCasing) {
-      // windows drive letter: file:///c:/far/boo
-      value = uri.path[1].toLowerCase() + uri.path.substr(2)
-    } else {
-      value = uri.path.substr(1)
-    }
-  } else {
-    // other path
-    value = uri.path
-  }
-  if (isWindows) {
-    value = value.replace(/\//g, "\\")
-  }
-  return value
 }
 
 /**
@@ -523,4 +485,79 @@ export function escapeHtml(unsafe: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;")
+}
+
+/**
+ * A helper function which returns a boolean indicating whether
+ * the given error is a NodeJS.ErrnoException by checking if
+ * it has a .code property.
+ */
+export function isNodeJSErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error !== undefined && (error as NodeJS.ErrnoException).code !== undefined
+}
+
+// TODO: Replace with proper templating system.
+export const escapeJSON = (value: cp.Serializable) => JSON.stringify(value).replace(/"/g, "&quot;")
+
+type AMDModule<T> = { [exportName: string]: T }
+
+/**
+ * Loads AMD module, typically from a compiled VSCode bundle.
+ *
+ * @deprecated This should be gradually phased out as code-server migrates to lib/vscode
+ * @param amdPath Path to module relative to lib/vscode
+ * @param exportName Given name of export in the file
+ */
+export const loadAMDModule = async <T>(amdPath: string, exportName: string): Promise<T> => {
+  // Set default remote native node modules path, if unset
+  process.env["VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH"] =
+    process.env["VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH"] || path.join(vsRootPath, "remote", "node_modules")
+
+  require(path.join(vsRootPath, "out/bootstrap-node")).injectNodeModuleLookupPath(
+    process.env["VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH"],
+  )
+
+  const module = await new Promise<AMDModule<T>>((resolve, reject) => {
+    require(path.join(vsRootPath, "out/bootstrap-amd")).load(amdPath, resolve, reject)
+  })
+
+  return module[exportName] as T
+}
+
+export const enum VSCodeCompileStatus {
+  Loading = "Loading",
+  Compiling = "Compiling",
+  Compiled = "Compiled",
+}
+
+export interface CompilationStats {
+  status: VSCodeCompileStatus
+  lastCompiledAt: Date
+}
+
+export const readCompilationStats = async (): Promise<null | CompilationStats> => {
+  if (!isDevMode) {
+    throw new Error("Compilation stats are only present in development")
+  }
+
+  const filePath = path.join(rootPath, "out/watcher.json")
+  let stat: Stats
+  try {
+    stat = await fs.stat(filePath)
+  } catch (error) {
+    return null
+  }
+
+  if (!stat.isFile()) {
+    return null
+  }
+
+  try {
+    const file = await fs.readFile(filePath)
+    return JSON.parse(file.toString("utf-8"))
+  } catch (error) {
+    logError(logger, "VS Code", error)
+  }
+
+  return null
 }
