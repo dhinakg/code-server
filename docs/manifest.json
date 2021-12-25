@@ -1,5 +1,5 @@
 {
-  "versions": ["v3.12.0"],
+  "versions": ["v4.0.0"],
   "routes": [
     {
       "title": "Home",
@@ -51,6 +51,16 @@
           "title": "Termux",
           "description": "How to install Termux to run code-server on an Android device.",
           "path": "./termux.md"
+        },
+        {
+          "title": "iOS",
+          "description": "How to use code-server on iOS with iSH.",
+          "path": "./ios.md"
+        },
+        {
+          "title": "Android",
+          "description": "How to run code-server on an Android device using UserLAnd.",
+          "path": "./android.md"
         }
       ]
     },

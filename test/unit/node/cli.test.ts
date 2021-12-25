@@ -12,10 +12,26 @@ import {
   setDefaults,
   shouldOpenInExistingInstance,
   splitOnFirstEquals,
+  toVsCodeArgs,
 } from "../../../src/node/cli"
 import { shouldSpawnCliProcess } from "../../../src/node/main"
 import { generatePassword, paths } from "../../../src/node/util"
-import { useEnv, tmpdir } from "../../utils/helpers"
+import { clean, useEnv, tmpdir } from "../../utils/helpers"
+
+// The parser should not set any defaults so the caller can determine what
+// values the user actually set. These are only set after explicitly calling
+// `setDefaults`.
+const defaults = {
+  auth: "password",
+  host: "localhost",
+  port: 8080,
+  "proxy-domain": [],
+  usingEnvPassword: false,
+  usingEnvHashedPassword: false,
+  "extensions-dir": path.join(paths.data, "extensions"),
+  "user-data-dir": paths.data,
+  _: [],
+}
 
 describe("parser", () => {
   beforeEach(() => {
@@ -23,23 +39,6 @@ describe("parser", () => {
     delete process.env.PASSWORD
     console.log = jest.fn()
   })
-
-  // The parser should not set any defaults so the caller can determine what
-  // values the user actually set. These are only set after explicitly calling
-  // `setDefaults`.
-  const defaults = {
-    auth: "password",
-    host: "localhost",
-    port: 8080,
-    "proxy-domain": [],
-    usingEnvPassword: false,
-    usingEnvHashedPassword: false,
-    "extensions-dir": path.join(paths.data, "extensions"),
-    "user-data-dir": paths.data,
-    _: [],
-    workspace: "",
-    folder: "",
-  }
 
   it("should parse nothing", async () => {
     expect(parse([])).toStrictEqual({})
@@ -362,13 +361,11 @@ describe("parser", () => {
 })
 
 describe("cli", () => {
-  let testDir: string
+  const testName = "cli"
   const vscodeIpcPath = path.join(os.tmpdir(), "vscode-ipc")
 
   beforeAll(async () => {
-    testDir = await tmpdir("cli")
-    await fs.rmdir(testDir, { recursive: true })
-    await fs.mkdir(testDir, { recursive: true })
+    await clean(testName)
   })
 
   beforeEach(async () => {
@@ -417,6 +414,7 @@ describe("cli", () => {
     args._ = ["./file"]
     expect(await shouldOpenInExistingInstance(args)).toStrictEqual(undefined)
 
+    const testDir = await tmpdir(testName)
     const socketPath = path.join(testDir, "socket")
     await fs.writeFile(vscodeIpcPath, socketPath)
     expect(await shouldOpenInExistingInstance(args)).toStrictEqual(undefined)
@@ -636,14 +634,15 @@ describe("readSocketPath", () => {
   let tmpDirPath: string
   let tmpFilePath: string
 
-  beforeEach(async () => {
-    tmpDirPath = await tmpdir("readSocketPath")
-    tmpFilePath = path.join(tmpDirPath, "readSocketPath.txt")
-    await fs.writeFile(tmpFilePath, fileContents)
+  const testName = "readSocketPath"
+  beforeAll(async () => {
+    await clean(testName)
   })
 
-  afterEach(async () => {
-    await fs.rmdir(tmpDirPath, { recursive: true })
+  beforeEach(async () => {
+    tmpDirPath = await tmpdir(testName)
+    tmpFilePath = path.join(tmpDirPath, "readSocketPath.txt")
+    await fs.writeFile(tmpFilePath, fileContents)
   })
 
   it("should throw an error if it can't read the file", async () => {
@@ -665,5 +664,62 @@ describe("readSocketPath", () => {
     const contents1 = await readSocketPath(tmpFilePath)
     const contents2 = await readSocketPath(tmpFilePath)
     expect(contents2).toBe(contents1)
+  })
+})
+
+describe("toVsCodeArgs", () => {
+  const vscodeDefaults = {
+    ...defaults,
+    "connection-token": "0000",
+    "accept-server-license-terms": true,
+    help: false,
+    port: "8080",
+    version: false,
+  }
+
+  const testName = "vscode-args"
+  beforeAll(async () => {
+    // Clean up temporary directories from the previous run.
+    await clean(testName)
+  })
+
+  it("should convert empty args", async () => {
+    expect(await toVsCodeArgs(await setDefaults(parse([])))).toStrictEqual({
+      ...vscodeDefaults,
+      folder: "",
+      workspace: "",
+    })
+  })
+
+  it("should convert with workspace", async () => {
+    const workspace = path.join(await tmpdir(testName), "test.code-workspace")
+    await fs.writeFile(workspace, "foobar")
+    expect(await toVsCodeArgs(await setDefaults(parse([workspace])))).toStrictEqual({
+      ...vscodeDefaults,
+      workspace,
+      folder: "",
+      _: [workspace],
+    })
+  })
+
+  it("should convert with folder", async () => {
+    const folder = await tmpdir(testName)
+    expect(await toVsCodeArgs(await setDefaults(parse([folder])))).toStrictEqual({
+      ...vscodeDefaults,
+      folder,
+      workspace: "",
+      _: [folder],
+    })
+  })
+
+  it("should ignore regular file", async () => {
+    const file = path.join(await tmpdir(testName), "file")
+    await fs.writeFile(file, "foobar")
+    expect(await toVsCodeArgs(await setDefaults(parse([file])))).toStrictEqual({
+      ...vscodeDefaults,
+      folder: "",
+      workspace: "",
+      _: [file],
+    })
   })
 })

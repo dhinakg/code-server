@@ -1,6 +1,7 @@
+import { logger } from "@coder/logger"
 import { JSDOM } from "jsdom"
 import * as util from "../../../src/common/util"
-import { createLoggerMock } from "../../utils/helpers"
+import { mockLogger } from "../../utils/helpers"
 
 const dom = new JSDOM()
 global.document = dom.window.document
@@ -74,42 +75,6 @@ describe("util", () => {
     })
   })
 
-  describe("resolveBase", () => {
-    beforeEach(() => {
-      const location: LocationLike = {
-        pathname: "/healthz",
-        origin: "http://localhost:8080",
-      }
-
-      // Because resolveBase is not a pure function
-      // and relies on the global location to be set
-      // we set it before all the tests
-      // and tell TS that our location should be looked at
-      // as Location (even though it's missing some properties)
-      global.location = location as Location
-    })
-
-    it("should resolve a base", () => {
-      expect(util.resolveBase("localhost:8080")).toBe("/localhost:8080")
-    })
-
-    it("should resolve a base with a forward slash at the beginning", () => {
-      expect(util.resolveBase("/localhost:8080")).toBe("/localhost:8080")
-    })
-
-    it("should resolve a base with query params", () => {
-      expect(util.resolveBase("localhost:8080?folder=hello-world")).toBe("/localhost:8080")
-    })
-
-    it("should resolve a base with a path", () => {
-      expect(util.resolveBase("localhost:8080/hello/world")).toBe("/localhost:8080/hello/world")
-    })
-
-    it("should resolve a base to an empty string when not provided", () => {
-      expect(util.resolveBase()).toBe("")
-    })
-  })
-
   describe("arrayify", () => {
     it("should return value it's already an array", () => {
       expect(util.arrayify(["hello", "world"])).toStrictEqual(["hello", "world"])
@@ -130,31 +95,29 @@ describe("util", () => {
   })
 
   describe("logError", () => {
+    beforeAll(() => {
+      mockLogger()
+    })
+
     afterEach(() => {
       jest.clearAllMocks()
     })
-
-    afterAll(() => {
-      jest.restoreAllMocks()
-    })
-
-    const loggerModule = createLoggerMock()
 
     it("should log an error with the message and stack trace", () => {
       const message = "You don't have access to that folder."
       const error = new Error(message)
 
-      util.logError(loggerModule.logger, "ui", error)
+      util.logError(logger, "ui", error)
 
-      expect(loggerModule.logger.error).toHaveBeenCalled()
-      expect(loggerModule.logger.error).toHaveBeenCalledWith(`ui: ${error.message} ${error.stack}`)
+      expect(logger.error).toHaveBeenCalled()
+      expect(logger.error).toHaveBeenCalledWith(`ui: ${error.message} ${error.stack}`)
     })
 
     it("should log an error, even if not an instance of error", () => {
-      util.logError(loggerModule.logger, "api", "oh no")
+      util.logError(logger, "api", "oh no")
 
-      expect(loggerModule.logger.error).toHaveBeenCalled()
-      expect(loggerModule.logger.error).toHaveBeenCalledWith("api: oh no")
+      expect(logger.error).toHaveBeenCalled()
+      expect(logger.error).toHaveBeenCalledWith("api: oh no")
     })
   })
 })

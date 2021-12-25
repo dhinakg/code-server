@@ -37,7 +37,17 @@ implementation (#4414).
 - The static endpoint can no longer reach outside code-server. However the
   vscode-remote-resource endpoint still can.
 - OpenVSX has been made the default marketplace. However this means web
-  extensions like Vim are now broken.
+  extensions like Vim may be broken.
+- The last opened folder/workspace is no longer stored separately in the
+  settings file (we rely on the already-existing query object instead).
+
+### Deprecated
+
+- `--link` is now deprecated (#4562).
+
+### Security
+
+- We fixed a XSS vulnerability by escaping HTML from messages in the error page (#4430).
 
 ## [3.12.0](https://github.com/cdr/code-server/releases/tag/v3.12.0) - 2021-09-15
 

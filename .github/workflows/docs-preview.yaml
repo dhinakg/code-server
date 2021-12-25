@@ -28,9 +28,9 @@ jobs:
       - name: Checkout m
         uses: actions/checkout@v2
         with:
-          repository: cdr/m
+          repository: coder/m
           ref: refs/heads/master
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          ssh-key: ${{ secrets.READONLY_M_DEPLOY_KEY }}
           submodules: true
           fetch-depth: 0
 
