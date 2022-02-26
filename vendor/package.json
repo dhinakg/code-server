@@ -7,6 +7,6 @@
     "postinstall": "./postinstall.sh"
   },
   "devDependencies": {
-    "code-oss-dev": "cdr/vscode#48fae57fd9adb772fc1b10e4a9a5e1ba6880640a"
+    "code-oss-dev": "coder/vscode#6337ee490d16b7dfd8854d22c998f58d6cd21ef5"
   }
 }

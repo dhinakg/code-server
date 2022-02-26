@@ -6,10 +6,15 @@ replicaCount: 1
 
 image:
   repository: codercom/code-server
-  tag: '4.0.0'
+  tag: '4.0.2'
   pullPolicy: Always
 
+# Specifies one or more secrets to be used when pulling images from a
+# private container repository
+# https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry
 imagePullSecrets: []
+#  - name: registry-creds
+
 nameOverride: ""
 fullnameOverride: ""
 hostnameOverride: ""
@@ -35,13 +40,12 @@ service:
 ingress:
   enabled: false
   #annotations:
-  #  kubernetes.io/ingress.class: nginx
   #  kubernetes.io/tls-acme: "true"
   #hosts:
   #  - host: code-server.example.loc
   #    paths:
   #      - /
-
+  ingressClassName: ""
   #tls:
   #  - secretName: code-server
   #    hosts:

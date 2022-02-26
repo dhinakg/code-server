@@ -115,7 +115,7 @@ we recommend using another method, such as [Let's Encrypt](#let-encrypt) instead
 Using [Let's Encrypt](https://letsencrypt.org) is an option if you want to
 access code-server on an iPad or do not want to use SSH port forwarding.
 
-1. This option requires that the remote machine be exposed to the internet. Make sure that your instance allows HTTP/HTTP traffic.
+1. This option requires that the remote machine be exposed to the internet. Make sure that your instance allows HTTP/HTTPS traffic.
 
 1. You'll need a domain name (if you don't have one, you can purchase one from
    [Google Domains](https://domains.google.com) or the domain service of your
@@ -162,7 +162,7 @@ At this point, you should be able to access code-server via
 
 ### Using Let's Encrypt with NGINX
 
-1. This option requires that the remote machine be exposed to the internet. Make sure that your instance allows HTTP/HTTP traffic.
+1. This option requires that the remote machine be exposed to the internet. Make sure that your instance allows HTTP/HTTPS traffic.
 
 1. You'll need a domain name (if you don't have one, you can purchase one from
    [Google Domains](https://domains.google.com) or the domain service of your
@@ -229,7 +229,7 @@ code-server. You should only proceed with this option if:
 To use a self-signed certificate:
 
 1. This option requires that the remote machine be exposed to the internet. Make
-   sure that your instance allows HTTP/HTTP traffic.
+   sure that your instance allows HTTP/HTTPS traffic.
 
 1. SSH into your instance and edit your code-server config file to use a
    randomly generated self-signed certificate:
@@ -294,7 +294,7 @@ Note: if you set `proxy_set_header Host $host;` in your reverse proxy config, it
 
 ## Accessing web services
 
-If you're working on web services and want to access it locally, code-server
+If you're working on web services and want to access them locally, code-server
 can proxy to any port using either a subdomain or a subpath, allowing you to
 securely access these services using code-server's built-in authentication.
 
@@ -345,8 +345,8 @@ instead and the path will be passed as is (e.g., `/absproxy/3000/my-app-path`).
 ### Proxying to create a React app
 
 You must use `/absproxy/<port>` with `create-react-app` (see
-[#2565](https://github.com/cdr/code-server/issues/2565) and
-[#2222](https://github.com/cdr/code-server/issues/2222) for more information).
+[#2565](https://github.com/coder/code-server/issues/2565) and
+[#2222](https://github.com/coder/code-server/issues/2222) for more information).
 You will need to inform `create-react-app` of the path at which you are serving
 via `$PUBLIC_URL` and webpack via `$WDS_SOCKET_PATH`:
 
@@ -396,7 +396,7 @@ sudo apt update
 sudo apt install wget unzip openssh-server
 ```
 
-2. Start the SSH server and set the password for your user, if you haven't already. If you use [deploy-code-server](https://github.com/cdr/deploy-code-server),
+2. Start the SSH server and set the password for your user, if you haven't already. If you use [deploy-code-server](https://github.com/coder/deploy-code-server),
 
 ```bash
 sudo service ssh start

@@ -7,16 +7,6 @@ import * as util from "../../../src/node/util"
 
 describe("getEnvPaths", () => {
   describe("on darwin", () => {
-    let ORIGINAL_PLATFORM = ""
-
-    beforeAll(() => {
-      ORIGINAL_PLATFORM = process.platform
-
-      Object.defineProperty(process, "platform", {
-        value: "darwin",
-      })
-    })
-
     beforeEach(() => {
       jest.resetModules()
       jest.mock("env-paths", () => {
@@ -27,15 +17,6 @@ describe("getEnvPaths", () => {
         })
       })
     })
-
-    afterAll(() => {
-      // Restore old platform
-
-      Object.defineProperty(process, "platform", {
-        value: ORIGINAL_PLATFORM,
-      })
-    })
-
     it("should return the env paths using xdgBasedir", () => {
       jest.mock("xdg-basedir", () => ({
         data: "/home/usr/.local/share",
@@ -43,7 +24,7 @@ describe("getEnvPaths", () => {
         runtime: "/tmp/runtime",
       }))
       const getEnvPaths = require("../../../src/node/util").getEnvPaths
-      const envPaths = getEnvPaths()
+      const envPaths = getEnvPaths("darwin")
 
       expect(envPaths.data).toEqual("/home/usr/.local/share/code-server")
       expect(envPaths.config).toEqual("/home/usr/.config/code-server")
@@ -53,7 +34,7 @@ describe("getEnvPaths", () => {
     it("should return the env paths using envPaths when xdgBasedir is undefined", () => {
       jest.mock("xdg-basedir", () => ({}))
       const getEnvPaths = require("../../../src/node/util").getEnvPaths
-      const envPaths = getEnvPaths()
+      const envPaths = getEnvPaths("darwin")
 
       expect(envPaths.data).toEqual("/home/envPath/.local/share")
       expect(envPaths.config).toEqual("/home/envPath/.config")
@@ -61,16 +42,6 @@ describe("getEnvPaths", () => {
     })
   })
   describe("on win32", () => {
-    let ORIGINAL_PLATFORM = ""
-
-    beforeAll(() => {
-      ORIGINAL_PLATFORM = process.platform
-
-      Object.defineProperty(process, "platform", {
-        value: "win32",
-      })
-    })
-
     beforeEach(() => {
       jest.resetModules()
       jest.mock("env-paths", () => {
@@ -82,17 +53,9 @@ describe("getEnvPaths", () => {
       })
     })
 
-    afterAll(() => {
-      // Restore old platform
-
-      Object.defineProperty(process, "platform", {
-        value: ORIGINAL_PLATFORM,
-      })
-    })
-
     it("should return the env paths using envPaths", () => {
       const getEnvPaths = require("../../../src/node/util").getEnvPaths
-      const envPaths = getEnvPaths()
+      const envPaths = getEnvPaths("win32")
 
       expect(envPaths.data).toEqual("/windows/envPath/.local/share")
       expect(envPaths.config).toEqual("/windows/envPath/.config")
@@ -100,16 +63,6 @@ describe("getEnvPaths", () => {
     })
   })
   describe("on other platforms", () => {
-    let ORIGINAL_PLATFORM = ""
-
-    beforeAll(() => {
-      ORIGINAL_PLATFORM = process.platform
-
-      Object.defineProperty(process, "platform", {
-        value: "linux",
-      })
-    })
-
     beforeEach(() => {
       jest.resetModules()
       jest.mock("env-paths", () => {
@@ -121,20 +74,12 @@ describe("getEnvPaths", () => {
       })
     })
 
-    afterAll(() => {
-      // Restore old platform
-
-      Object.defineProperty(process, "platform", {
-        value: ORIGINAL_PLATFORM,
-      })
-    })
-
     it("should return the runtime using xdgBasedir if it exists", () => {
       jest.mock("xdg-basedir", () => ({
         runtime: "/tmp/runtime",
       }))
       const getEnvPaths = require("../../../src/node/util").getEnvPaths
-      const envPaths = getEnvPaths()
+      const envPaths = getEnvPaths("linux")
 
       expect(envPaths.data).toEqual("/linux/envPath/.local/share")
       expect(envPaths.config).toEqual("/linux/envPath/.config")
@@ -144,7 +89,7 @@ describe("getEnvPaths", () => {
     it("should return the env paths using envPaths when xdgBasedir is undefined", () => {
       jest.mock("xdg-basedir", () => ({}))
       const getEnvPaths = require("../../../src/node/util").getEnvPaths
-      const envPaths = getEnvPaths()
+      const envPaths = getEnvPaths("linux")
 
       expect(envPaths.data).toEqual("/linux/envPath/.local/share")
       expect(envPaths.config).toEqual("/linux/envPath/.config")
@@ -158,6 +103,10 @@ describe("hash", () => {
     const plainTextPassword = "mySecretPassword123"
     const hashed = await util.hash(plainTextPassword)
     expect(hashed).not.toBe(plainTextPassword)
+  })
+  it("should return a hash for an empty string", async () => {
+    const hashed = await util.hash("")
+    expect(hashed).not.toBe("")
   })
 })
 

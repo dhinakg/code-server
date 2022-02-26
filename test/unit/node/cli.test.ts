@@ -63,6 +63,8 @@ describe("parser", () => {
           "--verbose",
           "2",
 
+          ["--locale", "ja"],
+
           ["--log", "error"],
 
           "--help",
@@ -103,6 +105,7 @@ describe("parser", () => {
       help: true,
       host: "0.0.0.0",
       json: true,
+      locale: "ja",
       log: "error",
       open: true,
       port: 8081,
@@ -357,6 +360,19 @@ describe("parser", () => {
       "hashed-password":
         "$argon2i$v=19$m=4096,t=3,p=1$0qr/o+0t00hsbjfqcksfdq$ofcm4rl6o+b7oxpua4qlxubypbbpsf+8l531u7p9hyy",
     })
+  })
+  it("should throw an error for invalid config values", async () => {
+    const fakePath = "/fake-config-path"
+    const expectedErrMsg = `error reading ${fakePath}: `
+
+    expect(() =>
+      parse(["--foo"], {
+        configFile: fakePath,
+      }),
+    ).toThrowError(expectedErrMsg)
+  })
+  it("should ignore optional strings set to false", async () => {
+    expect(parse(["--cert=false"])).toEqual({})
   })
 })
 

@@ -57,6 +57,7 @@ export interface UserProvidedArgs {
   enable?: string[]
   help?: boolean
   host?: string
+  locale?: string
   port?: number
   json?: boolean
   log?: LogLevel
@@ -163,6 +164,7 @@ const options: Options<Required<UserProvidedArgs>> = {
   enable: { type: "string[]" },
   help: { type: "boolean", short: "h", description: "Show this output." },
   json: { type: "boolean" },
+  locale: { type: "string" }, // The preferred way to set the locale is via the UI.
   open: { type: "boolean", description: "Open in browser on startup. Does not work remotely." },
 
   "bind-addr": {
@@ -227,7 +229,7 @@ const options: Options<Required<UserProvidedArgs>> = {
     type: OptionalString,
     description: `
       Securely bind code-server via our cloud service with the passed name. You'll get a URL like
-      https://hostname-username.cdr.co at which you can easily access your code-server instance.
+      https://hostname-username.coder.co at which you can easily access your code-server instance.
       Authorization is done via GitHub.
     `,
     deprecated: true,

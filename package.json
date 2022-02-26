@@ -1,13 +1,13 @@
 {
   "name": "code-server",
   "license": "MIT",
-  "version": "4.0.0",
+  "version": "4.0.2",
   "description": "Run VS Code on a remote server.",
-  "homepage": "https://github.com/cdr/code-server",
+  "homepage": "https://github.com/coder/code-server",
   "bugs": {
-    "url": "https://github.com/cdr/code-server/issues"
+    "url": "https://github.com/coder/code-server/issues"
   },
-  "repository": "https://github.com/cdr/code-server",
+  "repository": "https://github.com/coder/code-server",
   "scripts": {
     "clean": "./ci/build/clean.sh",
     "build": "./ci/build/build-code-server.sh",
@@ -17,12 +17,13 @@
     "release:github-draft": "./ci/build/release-github-draft.sh",
     "release:github-assets": "./ci/build/release-github-assets.sh",
     "release:prep": "./ci/build/release-prep.sh",
-    "test:e2e": "./ci/dev/test-e2e.sh",
+    "test:e2e": "VSCODE_IPC_HOOK_CLI= ./ci/dev/test-e2e.sh",
     "test:standalone-release": "./ci/build/test-standalone-release.sh",
     "test:unit": "./ci/dev/test-unit.sh --forceExit --detectOpenHandles",
     "test:scripts": "./ci/dev/test-scripts.sh",
     "package": "./ci/build/build-packages.sh",
     "postinstall": "./ci/dev/postinstall.sh",
+    "publish:npm": "./ci/steps/publish-npm.sh",
     "_audit": "./ci/dev/audit.sh",
     "fmt": "./ci/dev/fmt.sh",
     "lint": "./ci/dev/lint.sh",
@@ -77,7 +78,10 @@
     "vfile-message": "^2.0.2",
     "tar": "^6.1.9",
     "path-parse": "^1.0.7",
-    "vm2": "^3.9.4"
+    "vm2": "^3.9.6",
+    "follow-redirects": "^1.14.8",
+    "node-fetch": "^2.6.7",
+    "nanoid": "^3.1.31"
   },
   "dependencies": {
     "@coder/logger": "1.1.16",
@@ -92,8 +96,7 @@
     "limiter": "^1.1.5",
     "pem": "^1.14.2",
     "proxy-agent": "^5.0.0",
-    "proxy-from-env": "^1.1.0",
-    "qs": "6.10.2",
+    "qs": "6.10.3",
     "rotating-file-stream": "^3.0.0",
     "safe-buffer": "^5.1.1",
     "safe-compare": "^1.1.4",

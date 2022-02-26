@@ -37,23 +37,23 @@ Current maintainers:
 - @TeffenEllis
 - @jsjoeio
 
-Occassionally, other Coder employees may step in time to time to assist with code-server.
+Occasionally, other Coder employees may step in time to time to assist with code-server.
 
 ### Onboarding
 
 To onboard a new maintainer to the project, please make sure to do the following:
 
-- [ ] Add to [cdr/code-server-reviewers](https://github.com/orgs/cdr/teams/code-server-reviewers)
-- [ ] Add as Admin under [Repository Settings > Access](https://github.com/cdr/code-server/settings/access)
+- [ ] Add to [coder/code-server-reviewers](https://github.com/orgs/coder/teams/code-server-reviewers)
+- [ ] Add as Admin under [Repository Settings > Access](https://github.com/coder/code-server/settings/access)
 - [ ] Add to [npm Coder org](https://www.npmjs.com/org/coder)
 - [ ] Add as [AUR maintainer](https://aur.archlinux.org/packages/code-server/) (talk to Colin)
-- [ ] Introduce to community via Discussion (see [example](https://github.com/cdr/code-server/discussions/3955))
+- [ ] Introduce to community via Discussion (see [example](https://github.com/coder/code-server/discussions/3955))
 
 ### Offboarding
 
 Very similar to Onboarding but Remove maintainer from all teams and revoke access. Please also do the following:
 
-- [ ] Write farewell post via Discussion (see [example](https://github.com/cdr/code-server/discussions/3933))
+- [ ] Write farewell post via Discussion (see [example](https://github.com/coder/code-server/discussions/3933))
 
 ## Workflow
 
@@ -64,7 +64,7 @@ contributing on day one.
 ### Milestones
 
 We operate mainly using
-[milestones](https://github.com/cdr/code-server/milestones). This was heavily
+[milestones](https://github.com/coder/code-server/milestones). This was heavily
 inspired by our friends over at [vscode](https://github.com/microsoft/vscode).
 
 Here are the milestones we use and how we use them:
@@ -185,12 +185,12 @@ If you're the current release manager, follow these steps:
    artifacts, publish the NPM package from `npm-package`, and publish the Docker
    Hub image from `release-images`.
 1. Update the AUR package. Instructions for updating the AUR package are at
-   [cdr/code-server-aur](https://github.com/cdr/code-server-aur).
+   [coder/code-server-aur](https://github.com/coder/code-server-aur).
 1. Wait for the npm package to be published.
 
 #### AUR
 
-We publish to AUR as a package [here](https://aur.archlinux.org/packages/code-server/). This process is manual and can be done by following the steps in [this repo](https://github.com/cdr/code-server-aur).
+We publish to AUR as a package [here](https://aur.archlinux.org/packages/code-server/). This process is manual and can be done by following the steps in [this repo](https://github.com/coder/code-server-aur).
 
 #### Docker
 
@@ -202,7 +202,7 @@ This is currently automated with the release process.
 
 We publish code-server on Homebrew [here](https://github.com/Homebrew/homebrew-core/blob/master/Formula/code-server.rb).
 
-This is currently automated with the release process (but may fail occassionally). If it does, run this locally:
+This is currently automated with the release process (but may fail occasionally). If it does, run this locally:
 
 ```shell
 # Replace VERSION with version
@@ -217,21 +217,22 @@ This is currently automated with the release process.
 
 ## Syncing with Upstream VS Code
 
-The VS Code portion of code-server lives under [`cdr/vscode`](https://github.com/cdr/vscode). To update VS Code for code-server, follow these steps:
+The VS Code portion of code-server lives under [`coder/vscode`](https://github.com/coder/vscode). To update VS Code for code-server, follow these steps:
 
 1. `git checkout -b vscode-update` - Create a new branch locally based off `main`
-2. `git fetch upstream` - Fetch upstream (VS Code)'s latest `main` branch
-3. `git merge upstream/main` - Merge it locally
-   1. If there are merge conflicts, fix them locally
+2. `git fetch upstream` - Fetch upstream (VS Code)'s latest branches
+3. `git merge upstream/release/1.64` - Merge it locally
+   1. replace `1.64` with the version you're upgrading to
+   1. If there are merge conflicts, commit first, then fix them locally.
 4. Open a PR merging your branch (`vscode-update`) into `main` and add the code-server review team
 
-Ideally, our fork stays as close to upstream as possible. See the differences between our fork and upstream [here](https://github.com/microsoft/vscode/compare/main...cdr:main).
+Ideally, our fork stays as close to upstream as possible. See the differences between our fork and upstream [here](https://github.com/microsoft/vscode/compare/main...coder:main).
 
 ## Testing
 
 Our testing structure is laid out under our [Contributing docs](https://coder.com/docs/code-server/latest/CONTRIBUTING#test).
 
-We hope to eventually hit 100% test converage with our unit tests, and maybe one day our scripts (coverage not tracked currently).
+We hope to eventually hit 100% test coverage with our unit tests, and maybe one day our scripts (coverage not tracked currently).
 
 If you're ever looking to add more tests, here are a few ways to get started:
 
@@ -247,7 +248,7 @@ Otherwise, talk to a current maintainer and ask which part of the codebase is la
 
 Our docs are hosted on [Vercel](https://vercel.com/). Vercel only shows logs in realtime, which means you need to have the logs open in one tab and reproduce your error in another tab. Since our logs are private to Coder the organization, you can only follow these steps if you're a Coder employee. Ask a maintainer for help if you need it.
 
-Taking a real scenario, let's say you wanted to troubleshoot [this docs change](https://github.com/cdr/code-server/pull/4042). Here is how you would do it:
+Taking a real scenario, let's say you wanted to troubleshoot [this docs change](https://github.com/coder/code-server/pull/4042). Here is how you would do it:
 
 1. Go to https://vercel.com/codercom/codercom
 2. Click "View Function Logs"
