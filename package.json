@@ -1,7 +1,7 @@
 {
   "name": "code-server",
   "license": "MIT",
-  "version": "4.0.2",
+  "version": "4.2.0",
   "description": "Run VS Code on a remote server.",
   "homepage": "https://github.com/coder/code-server",
   "bugs": {
@@ -51,7 +51,7 @@
     "@types/ws": "^8.0.0",
     "@typescript-eslint/eslint-plugin": "^5.0.0",
     "@typescript-eslint/parser": "^5.0.0",
-    "audit-ci": "^5.0.0",
+    "audit-ci": "^6.0.0",
     "codecov": "^3.8.3",
     "doctoc": "^2.0.0",
     "eslint": "^7.7.0",
@@ -69,7 +69,7 @@
   },
   "resolutions": {
     "ansi-regex": "^5.0.1",
-    "normalize-package-data": "^3.0.0",
+    "normalize-package-data": "^4.0.0",
     "doctoc/underscore": "^1.13.1",
     "doctoc/**/trim": "^1.0.0",
     "postcss": "^8.2.1",
@@ -81,7 +81,8 @@
     "vm2": "^3.9.6",
     "follow-redirects": "^1.14.8",
     "node-fetch": "^2.6.7",
-    "nanoid": "^3.1.31"
+    "nanoid": "^3.1.31",
+    "minimist": "npm:minimist-lite@2.2.0"
   },
   "dependencies": {
     "@coder/logger": "1.1.16",
@@ -89,7 +90,7 @@
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.5",
     "env-paths": "^2.2.0",
-    "express": "^5.0.0-alpha.8",
+    "express": "5.0.0-alpha.8",
     "http-proxy": "^1.18.0",
     "httpolyglot": "^0.1.2",
     "js-yaml": "^4.0.0",
@@ -127,7 +128,6 @@
     "testEnvironment": "node",
     "testPathIgnorePatterns": [
       "/node_modules/",
-      "/vendor/",
       "/lib/",
       "/out/",
       "test/e2e"
@@ -158,7 +158,7 @@
       "<rootDir>/release-npm-package",
       "<rootDir>/release-gcp",
       "<rootDir>/release-images",
-      "<rootDir>/vendor"
+      "<rootDir>/lib"
     ],
     "moduleNameMapper": {
       "^.+\\.(css|less)$": "<rootDir>/test/utils/cssStub.ts"

@@ -12,7 +12,12 @@ import {
   setDefaults,
   shouldOpenInExistingInstance,
   splitOnFirstEquals,
-  toVsCodeArgs,
+  toCodeArgs,
+  optionDescriptions,
+  options,
+  Options,
+  AuthType,
+  OptionalString,
 } from "../../../src/node/cli"
 import { shouldSpawnCliProcess } from "../../../src/node/main"
 import { generatePassword, paths } from "../../../src/node/util"
@@ -73,6 +78,8 @@ describe("parser", () => {
 
           "--socket=mumble",
 
+          "--socket-mode=777",
+
           "3",
 
           ["--user-data-dir", "path/to/user/dir"],
@@ -110,6 +117,7 @@ describe("parser", () => {
       open: true,
       port: 8081,
       socket: path.resolve("mumble"),
+      "socket-mode": "777",
       verbose: true,
       version: true,
       "bind-addr": "192.169.0.1:8080",
@@ -191,6 +199,15 @@ describe("parser", () => {
     expect(logger.level).toEqual(Level.Trace)
   })
 
+  it("should set valid log level env var", async () => {
+    process.env.LOG_LEVEL = "error"
+    const defaults = await setDefaults(parse([]))
+    expect(defaults).toEqual({
+      ...defaults,
+      log: "error",
+    })
+  })
+
   it("should ignore invalid log level env var", async () => {
     process.env.LOG_LEVEL = "bogus"
     const defaults = await setDefaults(parse([]))
@@ -269,7 +286,9 @@ describe("parser", () => {
   })
 
   it("should override with --link", async () => {
-    const args = parse("--cert test --cert-key test --socket test --host 0.0.0.0 --port 8888 --link test".split(" "))
+    const args = parse(
+      "--cert test --cert-key test --socket test --socket-mode 777 --host 0.0.0.0 --port 8888 --link test".split(" "),
+    )
     const defaultArgs = await setDefaults(args)
     expect(defaultArgs).toEqual({
       ...defaults,
@@ -282,6 +301,7 @@ describe("parser", () => {
       cert: undefined,
       "cert-key": path.resolve("test"),
       socket: undefined,
+      "socket-mode": undefined,
     })
   })
 
@@ -313,6 +333,19 @@ describe("parser", () => {
     })
   })
 
+  it("should use env var github token", async () => {
+    process.env.GITHUB_TOKEN = "ga-foo"
+    const args = parse([])
+    expect(args).toEqual({})
+
+    const defaultArgs = await setDefaults(args)
+    expect(defaultArgs).toEqual({
+      ...defaults,
+      "github-auth": "ga-foo",
+    })
+    expect(process.env.GITHUB_TOKEN).toBe(undefined)
+  })
+
   it("should error if password passed in", () => {
     expect(() => parse(["--password", "supersecret123"])).toThrowError(
       "--password can only be set in the config file or passed in via $PASSWORD",
@@ -322,6 +355,12 @@ describe("parser", () => {
   it("should error if hashed-password passed in", () => {
     expect(() => parse(["--hashed-password", "fdas423fs8a"])).toThrowError(
       "--hashed-password can only be set in the config file or passed in via $HASHED_PASSWORD",
+    )
+  })
+
+  it("should error if github-auth passed in", () => {
+    expect(() => parse(["--github-auth", "fdas423fs8a"])).toThrowError(
+      "--github-auth can only be set in the config file or passed in via $GITHUB_TOKEN",
     )
   })
 
@@ -373,6 +412,11 @@ describe("parser", () => {
   })
   it("should ignore optional strings set to false", async () => {
     expect(parse(["--cert=false"])).toEqual({})
+  })
+  it("should use last flag", async () => {
+    expect(parse(["--port", "8081", "--port", "8082"])).toEqual({
+      port: 8082,
+    })
   })
 })
 
@@ -683,11 +727,11 @@ describe("readSocketPath", () => {
   })
 })
 
-describe("toVsCodeArgs", () => {
+describe("toCodeArgs", () => {
   const vscodeDefaults = {
     ...defaults,
-    "connection-token": "0000",
     "accept-server-license-terms": true,
+    compatibility: "1.64",
     help: false,
     port: "8080",
     version: false,
@@ -700,42 +744,111 @@ describe("toVsCodeArgs", () => {
   })
 
   it("should convert empty args", async () => {
-    expect(await toVsCodeArgs(await setDefaults(parse([])))).toStrictEqual({
+    expect(await toCodeArgs(await setDefaults(parse([])))).toStrictEqual({
       ...vscodeDefaults,
-      folder: "",
-      workspace: "",
-    })
-  })
-
-  it("should convert with workspace", async () => {
-    const workspace = path.join(await tmpdir(testName), "test.code-workspace")
-    await fs.writeFile(workspace, "foobar")
-    expect(await toVsCodeArgs(await setDefaults(parse([workspace])))).toStrictEqual({
-      ...vscodeDefaults,
-      workspace,
-      folder: "",
-      _: [workspace],
-    })
-  })
-
-  it("should convert with folder", async () => {
-    const folder = await tmpdir(testName)
-    expect(await toVsCodeArgs(await setDefaults(parse([folder])))).toStrictEqual({
-      ...vscodeDefaults,
-      folder,
-      workspace: "",
-      _: [folder],
     })
   })
 
   it("should ignore regular file", async () => {
     const file = path.join(await tmpdir(testName), "file")
     await fs.writeFile(file, "foobar")
-    expect(await toVsCodeArgs(await setDefaults(parse([file])))).toStrictEqual({
+    expect(await toCodeArgs(await setDefaults(parse([file])))).toStrictEqual({
       ...vscodeDefaults,
-      folder: "",
-      workspace: "",
       _: [file],
     })
+  })
+})
+
+describe("optionDescriptions", () => {
+  it("should return the descriptions of all the available options", () => {
+    const expectedOptionDescriptions = Object.entries(options)
+      .flat()
+      .filter((item: any) => {
+        if (item.description) {
+          return item.description
+        }
+      })
+      .map((item: any) => item.description)
+    const actualOptionDescriptions = optionDescriptions()
+    // We need both the expected and the actual
+    // Both of these are string[]
+    // We then loop through the expectedOptionDescriptions
+    // and check that this expectedDescription exists in the
+    // actualOptionDescriptions
+
+    // To do that we need to loop through actualOptionDescriptions
+    // and make sure we have a substring match
+    expectedOptionDescriptions.forEach((expectedDescription) => {
+      const exists = actualOptionDescriptions.find((desc) => {
+        if (
+          desc.replace(/\n/g, " ").replace(/ /g, "").includes(expectedDescription.replace(/\n/g, " ").replace(/ /g, ""))
+        ) {
+          return true
+        }
+        return false
+      })
+      expect(exists).toBeTruthy()
+    })
+  })
+  it("should visually align multiple options", () => {
+    const opts: Partial<Options<Required<UserProvidedArgs>>> = {
+      "cert-key": { type: "string", path: true, description: "Path to certificate key when using non-generated cert." },
+      "cert-host": {
+        type: "string",
+        description: "Hostname to use when generating a self signed certificate.",
+      },
+      "disable-update-check": {
+        type: "boolean",
+        description:
+          "Disable update check. Without this flag, code-server checks every 6 hours against the latest github release and \n" +
+          "then notifies you once every week that a new release is available.",
+      },
+    }
+    expect(optionDescriptions(opts)).toStrictEqual([
+      "  --cert-key             Path to certificate key when using non-generated cert.",
+      "  --cert-host            Hostname to use when generating a self signed certificate.",
+      `  --disable-update-check Disable update check. Without this flag, code-server checks every 6 hours against the latest github release and
+                          then notifies you once every week that a new release is available.`,
+    ])
+  })
+  it("should add all valid options for enumerated types", () => {
+    const opts: Partial<Options<Required<UserProvidedArgs>>> = {
+      auth: { type: AuthType, description: "The type of authentication to use." },
+    }
+    expect(optionDescriptions(opts)).toStrictEqual(["  --auth The type of authentication to use. [password, none]"])
+  })
+
+  it("should show if an option is deprecated", () => {
+    const opts: Partial<Options<Required<UserProvidedArgs>>> = {
+      link: {
+        type: OptionalString,
+        description: `
+          Securely bind code-server via our cloud service with the passed name. You'll get a URL like
+          https://hostname-username.coder.co at which you can easily access your code-server instance.
+          Authorization is done via GitHub.
+        `,
+        deprecated: true,
+      },
+    }
+    expect(optionDescriptions(opts)).toStrictEqual([
+      `  --link (deprecated) Securely bind code-server via our cloud service with the passed name. You'll get a URL like
+          https://hostname-username.coder.co at which you can easily access your code-server instance.
+          Authorization is done via GitHub.`,
+    ])
+  })
+
+  it("should show newlines in description", () => {
+    const opts: Partial<Options<Required<UserProvidedArgs>>> = {
+      "install-extension": {
+        type: "string[]",
+        description:
+          "Install or update a VS Code extension by id or vsix. The identifier of an extension is `${publisher}.${name}`.\n" +
+          "To install a specific version provide `@${version}`. For example: 'vscode.csharp@1.2.3'.",
+      },
+    }
+    expect(optionDescriptions(opts)).toStrictEqual([
+      `  --install-extension Install or update a VS Code extension by id or vsix. The identifier of an extension is \`\${publisher}.\${name}\`.
+                       To install a specific version provide \`@\${version}\`. For example: 'vscode.csharp@1.2.3'.`,
+    ])
   })
 })

@@ -13,14 +13,6 @@ main() {
     exit 1
   fi
 
-  # NOTE@jsjoeio - only needed if we use the download_artifact
-  # because we talk to the GitHub API.
-  # Needed to use GitHub API
-  if ! is_env_var_set "GITHUB_TOKEN"; then
-    echo "GITHUB_TOKEN is not set. Cannot download npm release artifact without GitHub credentials."
-    exit 1
-  fi
-
   ## Publishing Information
   # All the variables below are used to determine how we should publish
   # the npm package. We also use this information for bumping the version.
@@ -48,6 +40,13 @@ main() {
   # We use this to determine the NPM_ENVIRONMENT
   if ! is_env_var_set "GITHUB_EVENT_NAME"; then
     echo "GITHUB_EVENT_NAME is not set. Are you running this locally? We rely on values provided by GitHub."
+    exit 1
+  fi
+
+  # Check that we're using at least v7 of npm CLI
+  if ! command -v jq &> /dev/null; then
+    echo "Couldn't find jq"
+    echo "We need this in order to modify the package.json for dev builds."
     exit 1
   fi
 
@@ -86,6 +85,10 @@ main() {
   # See: https://github.com/coder/code-server/pull/3935
   echo "node_modules.asar" > release/.npmignore
 
+  # We use this to set the name of the package in the
+  # package.json
+  PACKAGE_NAME="code-server"
+
   # NOTES:@jsjoeio
   # We only need to run npm version for "development" and "staging".
   # This is because our release:prep script automatically bumps the version
@@ -112,12 +115,14 @@ main() {
       # Source: https://github.com/actions/checkout/issues/58#issuecomment-614041550
       PR_NUMBER=$(echo "$GITHUB_REF" | awk 'BEGIN { FS = "/" } ; { print $3 }')
       NPM_VERSION="$VERSION-$PR_NUMBER-$COMMIT_SHA"
+      PACKAGE_NAME="@coder/code-server-pr"
       # This means the npm version will be tagged with "<pr number>"
       # and installed when a user runs `yarn install code-server@<pr number>`
       NPM_TAG="$PR_NUMBER"
     fi
 
     echo "using tag: $NPM_TAG"
+    echo "using package name: $PACKAGE_NAME"
 
     # We modify the version in the package.json
     # to be the current version + the PR number + commit SHA
@@ -125,9 +130,14 @@ main() {
     # Example: "version": "4.0.1-4769-ad7b23cfe6ffd72914e34781ef7721b129a23040"
     # Example: "version": "4.0.1-beta-ad7b23cfe6ffd72914e34781ef7721b129a23040"
     pushd release
-    # NOTE:@jsjoeio
+    # NOTE@jsjoeio
     # I originally tried to use `yarn version` but ran into issues and abandoned it.
     npm version "$NPM_VERSION"
+    # NOTE@jsjoeio
+    # Use the development package name
+    # This is so we don't clutter the code-server versions on npm
+    # with development versions.
+    jq ".name |= \"$PACKAGE_NAME\"" package.json
     popd
   fi
 
@@ -141,7 +151,10 @@ main() {
     return
   fi
 
-  yarn publish --non-interactive release --tag "$NPM_TAG"
+  # NOTE@jsjoeio
+  # Since the dev builds are scoped to @coder
+  # We pass --access public to ensure npm knows it's not private.
+  yarn publish --non-interactive release --tag "$NPM_TAG" --access public
 }
 
 main "$@"

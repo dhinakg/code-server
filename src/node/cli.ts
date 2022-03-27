@@ -3,15 +3,7 @@ import { promises as fs } from "fs"
 import yaml from "js-yaml"
 import * as os from "os"
 import * as path from "path"
-import {
-  canConnect,
-  generateCertificate,
-  generatePassword,
-  humanPath,
-  paths,
-  isNodeJSErrnoException,
-  isFile,
-} from "./util"
+import { canConnect, generateCertificate, generatePassword, humanPath, paths, isNodeJSErrnoException } from "./util"
 
 const DEFAULT_SOCKET_PATH = path.join(os.tmpdir(), "vscode-ipc")
 
@@ -40,41 +32,9 @@ export enum LogLevel {
 export class OptionalString extends Optional<string> {}
 
 /**
- * Arguments that the user explicitly provided on the command line.  All
- * arguments must be optional.
- *
- * For arguments with defaults see DefaultedArgs.
+ * Code flags provided by the user.
  */
-export interface UserProvidedArgs {
-  config?: string
-  auth?: AuthType
-  password?: string
-  "hashed-password"?: string
-  cert?: OptionalString
-  "cert-host"?: string
-  "cert-key"?: string
-  "disable-update-check"?: boolean
-  enable?: string[]
-  help?: boolean
-  host?: string
-  locale?: string
-  port?: number
-  json?: boolean
-  log?: LogLevel
-  open?: boolean
-  "bind-addr"?: string
-  socket?: string
-  version?: boolean
-  "proxy-domain"?: string[]
-  "reuse-window"?: boolean
-  "new-window"?: boolean
-  "ignore-last-opened"?: boolean
-  link?: OptionalString
-  verbose?: boolean
-  /* Positional arguments. */
-  _?: string[]
-
-  // VS Code flags.
+export interface UserProvidedCodeArgs {
   "disable-telemetry"?: boolean
   force?: boolean
   "user-data-dir"?: string
@@ -87,6 +47,44 @@ export interface UserProvidedArgs {
   "locate-extension"?: string[]
   "show-versions"?: boolean
   category?: string
+  "github-auth"?: string
+  "disable-update-check"?: boolean
+}
+
+/**
+ * Arguments that the user explicitly provided on the command line.  All
+ * arguments must be optional.
+ *
+ * For arguments with defaults see DefaultedArgs.
+ */
+export interface UserProvidedArgs extends UserProvidedCodeArgs {
+  config?: string
+  auth?: AuthType
+  password?: string
+  "hashed-password"?: string
+  cert?: OptionalString
+  "cert-host"?: string
+  "cert-key"?: string
+  enable?: string[]
+  help?: boolean
+  host?: string
+  locale?: string
+  port?: number
+  json?: boolean
+  log?: LogLevel
+  open?: boolean
+  "bind-addr"?: string
+  socket?: string
+  "socket-mode"?: string
+  version?: boolean
+  "proxy-domain"?: string[]
+  "reuse-window"?: boolean
+  "new-window"?: boolean
+  "ignore-last-opened"?: boolean
+  link?: OptionalString
+  verbose?: boolean
+  /* Positional arguments. */
+  _?: string[]
 }
 
 interface Option<T> {
@@ -126,11 +124,11 @@ type OptionType<T> = T extends boolean
   ? "string[]"
   : "unknown"
 
-type Options<T> = {
+export type Options<T> = {
   [P in keyof T]: Option<OptionType<T[P]>>
 }
 
-const options: Options<Required<UserProvidedArgs>> = {
+export const options: Options<Required<UserProvidedArgs>> = {
   auth: { type: AuthType, description: "The type of authentication to use." },
   password: {
     type: "string",
@@ -182,6 +180,7 @@ const options: Options<Required<UserProvidedArgs>> = {
   port: { type: "number", description: "" },
 
   socket: { type: "string", path: true, description: "Path to a socket (bind-addr will be ignored)." },
+  "socket-mode": { type: "string", description: "File mode of the socket." },
   version: { type: "boolean", short: "v", description: "Display version information." },
   _: { type: "string[]" },
 
@@ -205,6 +204,10 @@ const options: Options<Required<UserProvidedArgs>> = {
   },
   "uninstall-extension": { type: "string[]", description: "Uninstall a VS Code extension by id." },
   "show-versions": { type: "boolean", description: "Show VS Code extension versions." },
+  "github-auth": {
+    type: "string",
+    description: "GitHub authentication token (can only be passed in via $GITHUB_TOKEN or the config file).",
+  },
   "proxy-domain": { type: "string[]", description: "Domain used for proxying ports." },
   "ignore-last-opened": {
     type: "boolean",
@@ -236,8 +239,8 @@ const options: Options<Required<UserProvidedArgs>> = {
   },
 }
 
-export const optionDescriptions = (): string[] => {
-  const entries = Object.entries(options).filter(([, v]) => !!v.description)
+export const optionDescriptions = (opts: Partial<Options<Required<UserProvidedArgs>>> = options): string[] => {
+  const entries = Object.entries(opts).filter(([, v]) => !!v.description)
   const widths = entries.reduce(
     (prev, [k, v]) => ({
       long: k.length > prev.long ? k.length : prev.long,
@@ -336,6 +339,10 @@ export const parse = (
         throw new Error("--hashed-password can only be set in the config file or passed in via $HASHED_PASSWORD")
       }
 
+      if (key === "github-auth" && !opts?.configFile) {
+        throw new Error("--github-auth can only be set in the config file or passed in via $GITHUB_TOKEN")
+      }
+
       const option = options[key]
       if (option.type === "boolean") {
         ;(args[key] as boolean) = true
@@ -409,7 +416,12 @@ export const parse = (
 
   logger.debug(() => [
     `parsed ${opts?.configFile ? "config" : "command line"}`,
-    field("args", { ...args, password: undefined }),
+    field("args", {
+      ...args,
+      password: args.password ? "<redacted>" : undefined,
+      "hashed-password": args["hashed-password"] ? "<redacted>" : undefined,
+      "github-auth": args["github-auth"] ? "<redacted>" : undefined,
+    }),
   ])
 
   return args
@@ -434,7 +446,7 @@ export interface DefaultedArgs extends ConfigArgs {
   "extensions-dir": string
   "user-data-dir": string
   /* Positional arguments. */
-  _: []
+  _: string[]
 }
 
 /**
@@ -507,6 +519,7 @@ export async function setDefaults(cliArgs: UserProvidedArgs, configArgs?: Config
     args.host = "localhost"
     args.port = 0
     args.socket = undefined
+    args["socket-mode"] = undefined
     args.cert = undefined
     args.auth = AuthType.None
   }
@@ -530,9 +543,14 @@ export async function setDefaults(cliArgs: UserProvidedArgs, configArgs?: Config
     usingEnvPassword = false
   }
 
+  if (process.env.GITHUB_TOKEN) {
+    args["github-auth"] = process.env.GITHUB_TOKEN
+  }
+
   // Ensure they're not readable by child processes.
   delete process.env.PASSWORD
   delete process.env.HASHED_PASSWORD
+  delete process.env.GITHUB_TOKEN
 
   // Filter duplicate proxy domains and remove any leading `*.`.
   const proxyDomains = new Set((args["proxy-domain"] || []).map((d) => d.replace(/^\*\./, "")))
@@ -748,29 +766,36 @@ export const shouldOpenInExistingInstance = async (args: UserProvidedArgs): Prom
 }
 
 /**
+ * Arguments for running Code's server.
+ *
+ * A subset of ../../lib/vscode/src/vs/server/node/serverEnvironmentService.ts:90
+ */
+export interface CodeArgs extends UserProvidedCodeArgs {
+  "accept-server-license-terms"?: boolean
+  "connection-token"?: string
+  help: boolean
+  port?: string
+  version: boolean
+  "without-connection-token"?: boolean
+  "without-browser-env-var"?: boolean
+  compatibility: string
+}
+
+/**
+ * Types for ../../lib/vscode/src/vs/server/node/server.main.ts:65.
+ */
+export type SpawnCodeCli = (args: CodeArgs) => Promise<void>
+
+/**
  * Convert our arguments to VS Code server arguments.
  */
-export const toVsCodeArgs = async (args: DefaultedArgs): Promise<CodeServerLib.ServerParsedArgs> => {
-  let workspace = ""
-  let folder = ""
-  if (args._.length) {
-    const lastEntry = path.resolve(args._[args._.length - 1])
-    const entryIsFile = await isFile(lastEntry)
-    if (entryIsFile && path.extname(lastEntry) === ".code-workspace") {
-      workspace = lastEntry
-    } else if (!entryIsFile) {
-      folder = lastEntry
-    }
-    // Otherwise it is a regular file.  Spawning VS Code with a file is not yet
-    // supported but it can be done separately after code-server spawns.
-  }
-
+export const toCodeArgs = async (args: DefaultedArgs): Promise<CodeArgs> => {
   return {
-    "connection-token": "0000",
     ...args,
-    workspace,
-    folder,
     "accept-server-license-terms": true,
+    // This seems to be used to make the connection token flags optional (when
+    // set to 1.63) but we have always included them.
+    compatibility: "1.64",
     /** Type casting. */
     help: !!args.help,
     version: !!args.version,

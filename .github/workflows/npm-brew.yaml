@@ -8,17 +8,32 @@ on:
   release:
     types: [released]
 
+# Cancel in-progress runs for pull requests when developers push
+# additional changes, and serialize builds in branches.
+# https://docs.github.com/en/actions/using-jobs/using-concurrency#example-using-concurrency-to-cancel-any-in-progress-job-or-run
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # NOTE: this job requires curl, jq and yarn
   # All of them are included in ubuntu-latest.
   npm:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - uses: actions/download-artifact@v2
+      - name: Get version
+        id: version
+        run: echo "::set-output name=version::$(jq -r .version package.json)"
+
+      - name: Download artifact
+        uses: dawidd6/action-download-artifact@v2
         id: download
         with:
+          branch: v${{ steps.version.outputs.version }}
+          workflow: ci.yaml
+          workflow_conclusion: completed
           name: "npm-package"
           path: release-npm-package
 
@@ -42,11 +57,20 @@ jobs:
         id: set-up-homebrew
         uses: Homebrew/actions/setup-homebrew@master
 
-      - uses: actions/checkout@v2
+      - name: Checkout code-server
+        uses: actions/checkout@v3
+
+      - name: Checkout cdrci/homebrew-core
+        uses: actions/checkout@v3
+        with:
+          repository: cdrci/homebrew-core
+          path: homebrew-core
+
       - name: Configure git
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
+
       - name: Bump code-server homebrew version
         env:
           HOMEBREW_GITHUB_API_TOKEN: ${{secrets.HOMEBREW_GITHUB_API_TOKEN}}

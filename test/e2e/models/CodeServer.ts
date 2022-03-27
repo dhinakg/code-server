@@ -3,6 +3,7 @@ import * as cp from "child_process"
 import { promises as fs } from "fs"
 import * as path from "path"
 import { Page } from "playwright"
+import * as util from "util"
 import { logError, plural } from "../../../src/common/util"
 import { onLine } from "../../../src/node/util"
 import { PASSWORD, workspaceDir } from "../../utils/constants"
@@ -19,14 +20,14 @@ class Context {
   public canceled(): boolean {
     return this._canceled
   }
-  public done(): void {
-    this._done = true
+  public finished(): boolean {
+    return this._done
   }
   public cancel(): void {
     this._canceled = true
   }
-  public finish(): boolean {
-    return this._done
+  public finish(): void {
+    this._done = true
   }
 }
 
@@ -37,9 +38,14 @@ export class CodeServer {
   private process: Promise<CodeServerProcess> | undefined
   public readonly logger: Logger
   private closed = false
-  private _workspaceDir: Promise<string> | undefined
 
-  constructor(name: string, private readonly codeServerArgs: string[]) {
+  constructor(
+    name: string,
+    private readonly args: string[],
+    private readonly env: NodeJS.ProcessEnv,
+    private _workspaceDir: Promise<string> | string | undefined,
+    private readonly entry = process.env.CODE_SERVER_TEST_ENTRY || ".",
+  ) {
     this.logger = logger.named(name)
   }
 
@@ -58,7 +64,7 @@ export class CodeServer {
   /**
    * The workspace directory code-server opens with.
    */
-  get workspaceDir(): Promise<string> {
+  get workspaceDir(): Promise<string> | string {
     if (!this._workspaceDir) {
       this._workspaceDir = tmpdir(workspaceDir)
     }
@@ -70,7 +76,7 @@ export class CodeServer {
    */
   private async createWorkspace(): Promise<string> {
     const dir = await this.workspaceDir
-    await fs.mkdir(path.join(dir, "User"))
+    await fs.mkdir(path.join(dir, "User"), { recursive: true })
     await fs.writeFile(
       path.join(dir, "User/settings.json"),
       JSON.stringify({
@@ -91,35 +97,33 @@ export class CodeServer {
     const dir = await this.createWorkspace()
 
     return new Promise((resolve, reject) => {
-      this.logger.debug("spawning")
-      const proc = cp.spawn(
-        "node",
-        [
-          process.env.CODE_SERVER_TEST_ENTRY || ".",
-          ...this.codeServerArgs,
-          // Using port zero will spawn on a random port.
-          "--bind-addr",
-          "127.0.0.1:0",
-          // Setting the XDG variables would be easier and more thorough but the
-          // modules we import ignores those variables for non-Linux operating
-          // systems so use these flags instead.
-          "--config",
-          path.join(dir, "config.yaml"),
-          "--user-data-dir",
-          dir,
-          "--extensions-dir",
-          path.join(__dirname, "../extensions"),
-          // The last argument is the workspace to open.
-          dir,
-        ],
-        {
-          cwd: path.join(__dirname, "../../.."),
-          env: {
-            ...process.env,
-            PASSWORD,
-          },
+      const args = [
+        this.entry,
+        "--extensions-dir",
+        path.join(dir, "extensions"),
+        ...this.args,
+        // Using port zero will spawn on a random port.
+        "--bind-addr",
+        "127.0.0.1:0",
+        // Setting the XDG variables would be easier and more thorough but the
+        // modules we import ignores those variables for non-Linux operating
+        // systems so use these flags instead.
+        "--config",
+        path.join(dir, "config.yaml"),
+        "--user-data-dir",
+        dir,
+        // The last argument is the workspace to open.
+        dir,
+      ]
+      this.logger.debug("spawning `node " + args.join(" ") + "`")
+      const proc = cp.spawn("node", args, {
+        cwd: path.join(__dirname, "../../.."),
+        env: {
+          ...process.env,
+          ...this.env,
+          PASSWORD,
         },
-      )
+      })
 
       const timer = idleTimer("Failed to extract address; did the format change?", reject)
 
@@ -130,7 +134,7 @@ export class CodeServer {
       })
 
       proc.on("close", (code) => {
-        const error = new Error("closed unexpectedly")
+        const error = new Error("code-server closed unexpectedly")
         if (!this.closed) {
           this.logger.error(error.message, field("code", code))
         }
@@ -147,7 +151,7 @@ export class CodeServer {
         timer.reset()
 
         // Log the line without the timestamp.
-        this.logger.trace(line.replace(/\[.+\]/, ""))
+        this.logger.debug(line.replace(/\[.+\]/, ""))
         if (resolved) {
           return
         }
@@ -188,9 +192,13 @@ export class CodeServer {
 export class CodeServerPage {
   private readonly editorSelector = "div.monaco-workbench"
 
-  constructor(private readonly codeServer: CodeServer, public readonly page: Page) {
+  constructor(
+    private readonly codeServer: CodeServer,
+    public readonly page: Page,
+    private readonly authenticated: boolean,
+  ) {
     this.page.on("console", (message) => {
-      this.codeServer.logger.debug(message)
+      this.codeServer.logger.debug(message.text())
     })
     this.page.on("pageerror", (error) => {
       logError(this.codeServer.logger, "page", error)
@@ -209,11 +217,18 @@ export class CodeServerPage {
   }
 
   /**
-   * Navigate to a code-server endpoint.  By default go to the root.
+   * Navigate to a code-server endpoint (root by default).  Then wait for the
+   * editor to become available.
    */
   async navigate(endpoint = "/") {
     const to = new URL(endpoint, await this.codeServer.address())
     await this.page.goto(to.toString(), { waitUntil: "networkidle" })
+
+    // Only reload editor if authenticated. Otherwise we'll get stuck
+    // reloading the login page.
+    if (this.authenticated) {
+      await this.reloadUntilEditorIsReady()
+    }
   }
 
   /**
@@ -226,14 +241,13 @@ export class CodeServerPage {
     this.codeServer.logger.debug("Waiting for editor to be ready...")
 
     const editorIsVisible = await this.isEditorVisible()
-    const editorIsConnected = await this.isConnected()
     let reloadCount = 0
 
     // Occassionally code-server timeouts in Firefox
     // we're not sure why
     // but usually a reload or two fixes it
     // TODO@jsjoeio @oxy look into Firefox reconnection/timeout issues
-    while (!editorIsVisible && !editorIsConnected) {
+    while (!editorIsVisible) {
       // When a reload happens, we want to wait for all resources to be
       // loaded completely. Hence why we use that instead of DOMContentLoaded
       // Read more: https://thisthat.dev/dom-content-loaded-vs-load/
@@ -241,7 +255,7 @@ export class CodeServerPage {
       // Give it an extra second just in case it's feeling extra slow
       await this.page.waitForTimeout(1000)
       reloadCount += 1
-      if ((await this.isEditorVisible()) && (await this.isConnected())) {
+      if (await this.isEditorVisible()) {
         this.codeServer.logger.debug(`editor became ready after ${reloadCount} reloads`)
         break
       }
@@ -263,23 +277,6 @@ export class CodeServerPage {
     this.codeServer.logger.debug(`Editor is ${visible ? "not visible" : "visible"}!`)
 
     return visible
-  }
-
-  /**
-   * Checks if the editor is visible
-   */
-  async isConnected() {
-    this.codeServer.logger.debug("Waiting for network idle...")
-
-    await this.page.waitForLoadState("networkidle")
-
-    const host = new URL(await this.codeServer.address()).host
-    // NOTE: This seems to be pretty brittle between version changes.
-    const hostSelector = `[aria-label="remote  ${host}"]`
-    this.codeServer.logger.debug(`Waiting selector: ${hostSelector}`)
-    await this.page.waitForSelector(hostSelector)
-
-    return await this.page.isVisible(hostSelector)
   }
 
   /**
@@ -311,13 +308,13 @@ export class CodeServerPage {
    * Wait for a tab to open for the specified file.
    */
   async waitForTab(file: string): Promise<void> {
-    return this.page.waitForSelector(`.tab :text("${path.basename(file)}")`)
+    await this.page.waitForSelector(`.tab :text("${path.basename(file)}")`)
   }
 
   /**
    * See if the specified tab is open.
    */
-  async tabIsVisible(file: string): Promise<void> {
+  async tabIsVisible(file: string): Promise<boolean> {
     return this.page.isVisible(`.tab :text("${path.basename(file)}")`)
   }
 
@@ -353,8 +350,8 @@ export class CodeServerPage {
       try {
         await this.page.waitForSelector(`${selector}:not(:focus-within)`)
       } catch (error) {
-        if (!ctx.done()) {
-          this.codeServer.logger.debug(`${selector} navigation: ${error.message || error}`)
+        if (!ctx.finished()) {
+          this.codeServer.logger.debug(`${selector} navigation: ${(error as any).message || error}`)
         }
       }
       return false
@@ -408,7 +405,7 @@ export class CodeServerPage {
             return false
           }
         } catch (error) {
-          logger.debug(`navigation: ${error.message || error}`)
+          logger.debug(`navigation: ${(error as any).message || error}`)
           return false
         }
       }
@@ -421,7 +418,7 @@ export class CodeServerPage {
     // time we lose focus or there is an error.
     let attempts = 1
     let context = new Context()
-    while (!(await Promise.race([openThenWaitClose(), navigate(context)]))) {
+    while (!(await Promise.race([openThenWaitClose(context), navigate(context)]))) {
       ++attempts
       logger.debug("closed, retrying (${attempt}/∞)")
       context.cancel()
@@ -450,16 +447,33 @@ export class CodeServerPage {
   }
 
   /**
-   * Navigates to code-server then reloads until the editor is ready.
-   *
-   * It is recommended to run setup before using this model in any tests.
+   * Execute a command in the root of the instance's workspace directory.
    */
-  async setup(authenticated: boolean, endpoint = "/") {
-    await this.navigate(endpoint)
-    // If we aren't authenticated we'll see a login page so we can't wait until
-    // the editor is ready.
-    if (authenticated) {
-      await this.reloadUntilEditorIsReady()
-    }
+  async exec(command: string): Promise<void> {
+    await util.promisify(cp.exec)(command, {
+      cwd: await this.workspaceDir,
+    })
+  }
+
+  /**
+   * Install an extension by ID to the instance's temporary extension
+   * directory.
+   */
+  async installExtension(id: string): Promise<void> {
+    const dir = path.join(await this.workspaceDir, "extensions")
+    await util.promisify(cp.exec)(`node . --install-extension ${id} --extensions-dir ${dir}`, {
+      cwd: path.join(__dirname, "../../.."),
+    })
+  }
+
+  /**
+   * Wait for state to be flushed to the database.
+   */
+  async stateFlush(): Promise<void> {
+    // If we reload too quickly VS Code will be unable to save the state changes
+    // so wait until those have been written to the database.  It flushes every
+    // five seconds so we need to wait at least that long.
+    // TODO@asher: There must be a better way.
+    await this.page.waitForTimeout(5500)
   }
 }

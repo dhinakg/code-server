@@ -12,13 +12,20 @@ on:
     paths:
       - "install.sh"
 
+# Cancel in-progress runs for pull requests when developers push
+# additional changes, and serialize builds in branches.
+# https://docs.github.com/en/actions/using-jobs/using-concurrency#example-using-concurrency-to-cancel-any-in-progress-job-or-run
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ubuntu:
     name: Test installer on Ubuntu
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install code-server
         run: ./install.sh
@@ -32,7 +39,7 @@ jobs:
     container: "alpine:3.14"
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install curl
         run: apk add curl
@@ -50,7 +57,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install code-server
         run: ./install.sh
